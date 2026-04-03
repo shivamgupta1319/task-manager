@@ -1,0 +1,5 @@
+{
+  "name": "Task Management System",
+  "description": "A scalable task management system with authentication, task tracking, and role-based access control.",
+  "requestFramePermissions": []
+}

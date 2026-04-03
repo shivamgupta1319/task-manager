@@ -1,0 +1,220 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - uid: string (required) - Firebase Auth UID
+    //   - name: string (required) - User's full name
+    //   - role: string (required) - 'admin' or 'user'
+    //   - createdAt: string (required) - ISO 8601 date string
+    //
+    // Collection: tasks
+    // Document ID: {taskId}
+    // Fields:
+    //   - title: string (required)
+    //   - description: string (optional)
+    //   - status: string (required) - 'todo', 'in_progress', 'done'
+    //   - priority: string (required) - 'low', 'medium', 'high'
+    //   - dueDate: string (optional) - ISO 8601 date string
+    //   - createdBy: string (required) - UID of creator
+    //   - assignedTo: string (optional) - UID of assignee
+    //   - tags: list of strings (optional)
+    //   - estimatedTime: number (optional)
+    //   - timeSpent: number (optional)
+    //   - recurrence: string (optional) - 'none', 'daily', 'weekly', 'monthly'
+    //   - createdAt: string (required) - ISO 8601 date string
+    //   - updatedAt: string (required) - ISO 8601 date string
+    //
+    // Collection: comments
+    // Document ID: {commentId}
+    // Fields:
+    //   - taskId: string (required)
+    //   - userId: string (required)
+    //   - content: string (required)
+    //   - createdAt: string (required)
+    //
+    // Collection: activity_logs
+    // Document ID: {logId}
+    // Fields:
+    //   - taskId: string (required)
+    //   - action: string (required) - 'created', 'updated', 'deleted'
+    //   - performedBy: string (required)
+    //   - timestamp: string (required)
+    //   - details: string (optional)
+    //
+    // Collection: notifications
+    // Document ID: {notificationId}
+    // Fields:
+    //   - userId: string (required)
+    //   - message: string (required)
+    //   - read: boolean (required)
+    //   - taskId: string (optional)
+    //   - createdAt: string (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "sg247938@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function hasOnlyAllowedFields(allowedFields) {
+      return request.resource.data.keys().hasOnly(allowedFields);
+    }
+
+    function hasRequiredFields(requiredFields) {
+      return request.resource.data.keys().hasAll(requiredFields);
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string &&
+        dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['uid', 'name', 'role', 'createdAt']) &&
+             hasRequiredFields(['uid', 'name', 'role', 'createdAt']) &&
+             data.uid is string && data.uid.size() > 0 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.role in ['admin', 'user'] &&
+             isValidDateString(data.createdAt);
+    }
+
+    function isValidTask(data) {
+      return hasOnlyAllowedFields(['title', 'description', 'status', 'priority', 'dueDate', 'createdBy', 'assignedTo', 'tags', 'estimatedTime', 'timeSpent', 'recurrence', 'createdAt', 'updatedAt']) &&
+             hasRequiredFields(['title', 'status', 'priority', 'createdBy', 'createdAt', 'updatedAt']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             (!('description' in data) || (data.description is string && data.description.size() < 5000)) &&
+             data.status in ['todo', 'in_progress', 'done'] &&
+             data.priority in ['low', 'medium', 'high'] &&
+             (!('dueDate' in data) || data.dueDate == null || isValidDateString(data.dueDate)) &&
+             data.createdBy is string && data.createdBy.size() > 0 &&
+             (!('assignedTo' in data) || data.assignedTo == null || (data.assignedTo is string && data.assignedTo.size() > 0)) &&
+             (!('tags' in data) || (data.tags is list && data.tags.size() < 20)) &&
+             (!('estimatedTime' in data) || data.estimatedTime == null || (data.estimatedTime is number && data.estimatedTime >= 0)) &&
+             (!('timeSpent' in data) || data.timeSpent == null || (data.timeSpent is number && data.timeSpent >= 0)) &&
+             (!('recurrence' in data) || data.recurrence == null || data.recurrence in ['none', 'daily', 'weekly', 'monthly']) &&
+             isValidDateString(data.createdAt) &&
+             isValidDateString(data.updatedAt);
+    }
+
+    function isValidComment(data) {
+      return hasOnlyAllowedFields(['taskId', 'userId', 'content', 'createdAt']) &&
+             hasRequiredFields(['taskId', 'userId', 'content', 'createdAt']) &&
+             data.taskId is string && data.taskId.size() > 0 &&
+             data.userId is string && data.userId.size() > 0 &&
+             data.content is string && data.content.size() > 0 && data.content.size() < 2000 &&
+             isValidDateString(data.createdAt);
+    }
+
+    function isValidActivityLog(data) {
+      return hasOnlyAllowedFields(['taskId', 'action', 'performedBy', 'timestamp', 'details']) &&
+             hasRequiredFields(['taskId', 'action', 'performedBy', 'timestamp']) &&
+             data.taskId is string && data.taskId.size() > 0 &&
+             data.action in ['created', 'updated', 'deleted'] &&
+             data.performedBy is string && data.performedBy.size() > 0 &&
+             isValidDateString(data.timestamp) &&
+             (!('details' in data) || (data.details is string && data.details.size() < 2000));
+    }
+
+    function isValidNotification(data) {
+      return hasOnlyAllowedFields(['userId', 'message', 'read', 'taskId', 'createdAt']) &&
+             hasRequiredFields(['userId', 'message', 'read', 'createdAt']) &&
+             data.userId is string && data.userId.size() > 0 &&
+             data.message is string && data.message.size() > 0 && data.message.size() < 1000 &&
+             data.read is bool &&
+             (!('taskId' in data) || data.taskId == null || (data.taskId is string && data.taskId.size() > 0)) &&
+             isValidDateString(data.createdAt);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+                    isOwner(userId) &&
+                    isValidUser(request.resource.data) &&
+                    request.resource.data.uid == userId &&
+                    (request.resource.data.role == 'user' || isAdmin());
+      allow update: if isAuthenticated() &&
+                    isValidUser(request.resource.data) &&
+                    request.resource.data.uid == resource.data.uid &&
+                    request.resource.data.createdAt == resource.data.createdAt &&
+                    ((isOwner(userId) && request.resource.data.role == resource.data.role) || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /tasks/{taskId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+                    isValidTask(request.resource.data) &&
+                    request.resource.data.createdBy == request.auth.uid;
+      allow update: if isAuthenticated() &&
+                    isValidTask(request.resource.data) &&
+                    request.resource.data.createdBy == resource.data.createdBy &&
+                    request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isAuthenticated() && (resource.data.createdBy == request.auth.uid || isAdmin());
+    }
+
+    match /comments/{commentId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+                    isValidComment(request.resource.data) &&
+                    request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() &&
+                    isValidComment(request.resource.data) &&
+                    request.resource.data.userId == resource.data.userId &&
+                    request.resource.data.createdAt == resource.data.createdAt &&
+                    request.resource.data.taskId == resource.data.taskId &&
+                    request.resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    match /activity_logs/{logId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+                    isValidActivityLog(request.resource.data) &&
+                    request.resource.data.performedBy == request.auth.uid;
+      allow update: if false; // Activity logs are immutable
+      allow delete: if isAdmin();
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && isValidNotification(request.resource.data);
+      allow update: if isAuthenticated() &&
+                    isValidNotification(request.resource.data) &&
+                    resource.data.userId == request.auth.uid &&
+                    request.resource.data.userId == resource.data.userId &&
+                    request.resource.data.message == resource.data.message &&
+                    request.resource.data.taskId == resource.data.taskId &&
+                    request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+  }
+}

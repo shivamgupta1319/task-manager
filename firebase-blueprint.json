@@ -1,0 +1,98 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the task management system.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "name": { "type": "string", "description": "User's full name" },
+        "email": { "type": "string", "format": "email", "description": "User's email address" },
+        "role": { "type": "string", "enum": ["admin", "user"], "description": "User's role" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["uid", "name", "email", "role", "createdAt"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "A task to be completed.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Task title" },
+        "description": { "type": "string", "description": "Detailed description of the task" },
+        "status": { "type": "string", "enum": ["todo", "in_progress", "done"], "description": "Current status" },
+        "priority": { "type": "string", "enum": ["low", "medium", "high"], "description": "Priority level" },
+        "dueDate": { "type": "string", "format": "date-time", "description": "Due date for the task" },
+        "createdBy": { "type": "string", "description": "UID of the user who created the task" },
+        "assignedTo": { "type": "string", "description": "UID of the user assigned to the task" },
+        "tags": { "type": "array", "items": { "type": "string" }, "description": "Tags/Labels for the task" },
+        "estimatedTime": { "type": "number", "description": "Estimated time in minutes" },
+        "timeSpent": { "type": "number", "description": "Time spent in minutes" },
+        "recurrence": { "type": "string", "enum": ["none", "daily", "weekly", "monthly"], "description": "Recurrence pattern" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp" }
+      },
+      "required": ["title", "status", "priority", "createdBy", "createdAt", "updatedAt"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "A comment on a task.",
+      "type": "object",
+      "properties": {
+        "taskId": { "type": "string", "description": "ID of the task this comment belongs to" },
+        "userId": { "type": "string", "description": "UID of the user who made the comment" },
+        "content": { "type": "string", "description": "The comment text" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["taskId", "userId", "content", "createdAt"]
+    },
+    "ActivityLog": {
+      "title": "ActivityLog",
+      "description": "Log of actions performed on tasks.",
+      "type": "object",
+      "properties": {
+        "taskId": { "type": "string", "description": "ID of the task" },
+        "action": { "type": "string", "enum": ["created", "updated", "deleted"], "description": "Action performed" },
+        "performedBy": { "type": "string", "description": "UID of the user who performed the action" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "Time of the action" },
+        "details": { "type": "string", "description": "Additional details about the action" }
+      },
+      "required": ["taskId", "action", "performedBy", "timestamp"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "In-app notification for a user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "UID of the user receiving the notification" },
+        "message": { "type": "string", "description": "Notification message" },
+        "read": { "type": "boolean", "description": "Whether the notification has been read" },
+        "taskId": { "type": "string", "description": "Optional related task ID" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["userId", "message", "read", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles"
+    },
+    "/tasks/{taskId}": {
+      "schema": { "$ref": "#/entities/Task" },
+      "description": "Tasks"
+    },
+    "/comments/{commentId}": {
+      "schema": { "$ref": "#/entities/Comment" },
+      "description": "Comments on tasks"
+    },
+    "/activity_logs/{logId}": {
+      "schema": { "$ref": "#/entities/ActivityLog" },
+      "description": "Activity logs for tasks"
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/Notification" },
+      "description": "User notifications"
+    }
+  }
+}
